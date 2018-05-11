@@ -18,57 +18,6 @@
  * ./ltl-serial (R =) 1 (B1 = B2 =) 3 (D1 =) 3  (D2 = )4 nsteps input_file output_file
  *
  ****************************************************************************/
-#include "hpc.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <assert.h>
-/*
-typedef unsigned char cell_t;
-
-int main (int argc, char *argv[]) {
-    char fname[128];
-    cell_t *cur, *next, *tmp;
-    double tstart, tend;
-    int s;
-    short int R, B1, B2, D1, D2, nstep;
-
-    if ( argc > 8 ) {
-        fprintf(stderr, "Usage: %s [nsteps [n]]\n", argv[0]);
-        return -1;
-    }
-
-    if ( argc > 1 && argc < 8 ) {
-        R = atoi(argv[1]);
-        B1 = atoi(argv[2]);
-        B2 = atoi(argv [3]);
-        D1 = atoi(argv[4]);
-        D2 = atoi(argv[5]);
-        nstep = atoi(argv[6]);
-    }
-    cur = (cell_t*)malloc(size);
-    assert(cur);
-    next = (cell_t*)malloc(size);
-    assert(next);
-
-    readFile(cur, argv[7]);
-    tstart = hpc_gettime();
-    for (s=0; s<nsteps; s++) {
-        copy_top_bottom(cur, n);
-        copy_left_right(cur, n);
-        step(cur, next, n);
-        tmp = cur;
-        cur = next;
-        next = tmp;
-    }
-    tend = hpc_gettime();
-    fprintf(stderr, "Execution time %f\n", tend - tstart);
-    snprintf(fname, sizeof(fname), "ltl-serial-%05d.pbm", s);
-    write_pbm(cur, n, fname);
-    free(cur);
-    free(next);
-    return 0;
-}*/
-
  #include "hpc.h"
  #include <stdio.h>
  #include <stdlib.h>
@@ -88,6 +37,7 @@ int main (int argc, char *argv[]) {
 
  /* Returns a pointer to the cell of coordinates (i,j) in the bitmap
     bmap */
+    /*Ritorna il valore di una cella date le coordinate */
  cell_t *IDX(cell_t *bmap, int n, int i, int j)
  {
      return bmap + i*n + j;
@@ -99,8 +49,8 @@ int CountLivingNeighbors(bmap_t* ltl, int i, int j, int r ){
 	int y = j -r;
 	int z = (r*2)+1;
 	for ( x = 0 ; x < z ; x++ ){
-		for( y = 0; j < z ; y ++){
-			if ( *IDX(ltl->bmap, ltl->n, x, y) == 1){
+		for( y = 0; y < z ; y ++){
+			if ( (unsigned int)*IDX(ltl->bmap, ltl->n, x, y) == 1){
 				count ++;
 			}
 		}
@@ -113,36 +63,76 @@ int CountLivingNeighbors(bmap_t* ltl, int i, int j, int r ){
      int i, j;
      const int n = ltl->n;
 
-     fprintf(f, "P1\n");
+     cell_t newbmap = ltl;
+     /*fprintf(f, "P1\n");
      fprintf(f, "# produced by ltl\n");
      fprintf(f, "%d %d\n", n, n);
+     for( int k = 0; k < nstep; k++){
      for (i=0; i<n; i++) {
          for (j=0; j<n; j++) {
 					 	if(*IDX(ltl->bmap, n, i, j) == 0)//if is died
 						{
 							int c = CountLivingNeighbors(ltl, i, j , r);
+            //  printf("B1: %d B2: %d c: %d",b1,b2,c);
 							if( b1 <= c && c <= b2){ // if it can relive
+                //printf("%u",(unsigned int)*IDX(ltl->bmap, n, i, j));
 								*IDX(ltl->bmap, n, i, j) = 1;
+                fprintf(f, "%d ", *IDX(ltl->bmap, n, i, j));
 							}
 						}
 						if(*IDX(ltl->bmap, n, i, j) == 1)//if is living
 						{
 							int c = CountLivingNeighbors(ltl, i, j , r) + 1;
 							if( d1 <= c && c <= d2){ // if it has to die
+                //printf("%u",(unsigned int)*IDX(ltl->bmap, n, i, j));
 								*IDX(ltl->bmap, n, i, j) = 0;
+                //printf("%u",(unsigned int)*IDX(ltl->bmap, n, i, j));
+                fprintf(f, "%d ", *IDX(ltl->bmap, n, i, j));
 							}
 						}
-
 						 	fprintf(f, "%d ", *IDX(ltl->bmap, n, i, j));
          }
          fprintf(f, "\n");
      }
+   }*/
+   fprintf(f, "P1\n");
+   fprintf(f, "# produced by ltl\n");
+   fprintf(f, "%d %d\n", n, n);
+   for( int k = 0; k < nstep; k++){
+   for (i=0; i<n; i++) {
+       for (j=0; j<n; j++) {
+          if(*IDX(ltl->bmap, n, i, j) == 0)//if is died
+          {
+            int c = CountLivingNeighbors(ltl, i, j , r);
+          //  printf("B1: %d B2: %d c: %d",b1,b2,c);
+            if( b1 <= c && c <= b2){ // if it can relive
+              //printf("%u",(unsigned int)*IDX(ltl->bmap, n, i, j));
+              *IDX(newbmap->bmap, n, i, j) = 1;
+              fprintf(f, "%d ", *IDX(ltl->bmap, n, i, j));
+            }
+          }
+          if(*IDX(ltl->bmap, n, i, j) == 1)//if is living
+          {
+            int c = CountLivingNeighbors(ltl, i, j , r) + 1;
+            if( d1 <= c && c <= d2){ // if it has to die
+              //printf("%u",(unsigned int)*IDX(ltl->bmap, n, i, j));
+              *IDX(newbmap->bmap, n, i, j) = 0;
+              //printf("%u",(unsigned int)*IDX(ltl->bmap, n, i, j));
+              fprintf(f, "%d ", *IDX(ltl->bmap, n, i, j));
+            }
+          }
+            fprintf(f, "%d ", *IDX(newbmap->bmap, n, i, j));
+       }
+       fprintf(f, "\n");
+   }
+ }
  }
  /**
   * Write the content of the bmap_t structure pointed to by ltl to the
   * file f in PBM format. The caller is responsible for passing a
   * pointer f to a file opened for writing
   */
+  /*Scrivere le matrici di char con la mappa ltl*/
  void write_ltl( bmap_t* ltl, FILE *f )
  {
      int i, j;
@@ -167,8 +157,10 @@ int CountLivingNeighbors(bmap_t* ltl, int i, int j, int r ){
   * PBM images produced by Gimp (you must save them in "ASCII format"
   * when prompted).
   */
+    /*Leggere le matrici di char con la mappa ltl*/
  void read_ltl( bmap_t *ltl, FILE* f )
  {
+
      char buf[2048];
      char *s;
      int n, i, j;
@@ -244,7 +236,6 @@ int CountLivingNeighbors(bmap_t* ltl, int i, int j, int r ){
          exit(-1);
      }
      read_ltl(&cur, in);
-
      fclose(in);
 
      fprintf(stderr, "Size of input image: %d x %d\n", cur.n, cur.n);
@@ -257,8 +248,8 @@ int CountLivingNeighbors(bmap_t* ltl, int i, int j, int r ){
          exit(-1);
      }
 
-		compute_ltl(&cur,R,B1,B2,D1,D2,nsteps,out);
-     //write_ltl(&cur, out);
+     		compute_ltl(&cur,R,B1,B2,D1,D2,nsteps,out);
+  //   write_ltl(&cur, out);
 
      fclose(out);
 
