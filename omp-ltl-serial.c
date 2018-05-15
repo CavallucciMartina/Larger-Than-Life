@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * ltl-serial.c - Larger than Life serial version ( GoL parameters)
+ * omp-ltl-serial.c - Larger than Life serial version ( GoL parameters)
  *
  * Written by Martina Cavallucci <martina.cavallucci(at)studio.unibo.it>
  * --------------------------------------------------------------------------
@@ -42,92 +42,7 @@
  {
      return bmap + i*n + j;
  }
-/*Count how many neighbors are living in the range */
-int CountLivingNeighbors(bmap_t* ltl, int i, int j, int r ){
-	int count = 0;
-	int x = i - r ;
-	int y = j -r;
-	int z = (r*2)+1;
-	for ( x = 0 ; x < z ; x++ ){
-		for( y = 0; y < z ; y ++){
-			if ( (unsigned int)*IDX(ltl->bmap, ltl->n, x, y) == 1){
-				count ++;
-			}
-		}
-	}
-	return count;
-}
-/*Compute of the Larger than life*/
- void compute_ltl( bmap_t* ltl,int r, int b1, int b2, int d1, int d2,int nstep, FILE *f )
- {
-     int i, j;
-     const int n = ltl->n;
-
-     cell_t newbmap = ltl;
-     /*fprintf(f, "P1\n");
-     fprintf(f, "# produced by ltl\n");
-     fprintf(f, "%d %d\n", n, n);
-     for( int k = 0; k < nstep; k++){
-     for (i=0; i<n; i++) {
-         for (j=0; j<n; j++) {
-					 	if(*IDX(ltl->bmap, n, i, j) == 0)//if is died
-						{
-							int c = CountLivingNeighbors(ltl, i, j , r);
-            //  printf("B1: %d B2: %d c: %d",b1,b2,c);
-							if( b1 <= c && c <= b2){ // if it can relive
-                //printf("%u",(unsigned int)*IDX(ltl->bmap, n, i, j));
-								*IDX(ltl->bmap, n, i, j) = 1;
-                fprintf(f, "%d ", *IDX(ltl->bmap, n, i, j));
-							}
-						}
-						if(*IDX(ltl->bmap, n, i, j) == 1)//if is living
-						{
-							int c = CountLivingNeighbors(ltl, i, j , r) + 1;
-							if( d1 <= c && c <= d2){ // if it has to die
-                //printf("%u",(unsigned int)*IDX(ltl->bmap, n, i, j));
-								*IDX(ltl->bmap, n, i, j) = 0;
-                //printf("%u",(unsigned int)*IDX(ltl->bmap, n, i, j));
-                fprintf(f, "%d ", *IDX(ltl->bmap, n, i, j));
-							}
-						}
-						 	fprintf(f, "%d ", *IDX(ltl->bmap, n, i, j));
-         }
-         fprintf(f, "\n");
-     }
-   }*/
-   fprintf(f, "P1\n");
-   fprintf(f, "# produced by ltl\n");
-   fprintf(f, "%d %d\n", n, n);
-   for( int k = 0; k < nstep; k++){
-   for (i=0; i<n; i++) {
-       for (j=0; j<n; j++) {
-          if(*IDX(ltl->bmap, n, i, j) == 0)//if is died
-          {
-            int c = CountLivingNeighbors(ltl, i, j , r);
-          //  printf("B1: %d B2: %d c: %d",b1,b2,c);
-            if( b1 <= c && c <= b2){ // if it can relive
-              //printf("%u",(unsigned int)*IDX(ltl->bmap, n, i, j));
-              *IDX(newbmap->bmap, n, i, j) = 1;
-              fprintf(f, "%d ", *IDX(ltl->bmap, n, i, j));
-            }
-          }
-          if(*IDX(ltl->bmap, n, i, j) == 1)//if is living
-          {
-            int c = CountLivingNeighbors(ltl, i, j , r) + 1;
-            if( d1 <= c && c <= d2){ // if it has to die
-              //printf("%u",(unsigned int)*IDX(ltl->bmap, n, i, j));
-              *IDX(newbmap->bmap, n, i, j) = 0;
-              //printf("%u",(unsigned int)*IDX(ltl->bmap, n, i, j));
-              fprintf(f, "%d ", *IDX(ltl->bmap, n, i, j));
-            }
-          }
-            fprintf(f, "%d ", *IDX(newbmap->bmap, n, i, j));
-       }
-       fprintf(f, "\n");
-   }
- }
- }
- /**
+  /**
   * Write the content of the bmap_t structure pointed to by ltl to the
   * file f in PBM format. The caller is responsible for passing a
   * pointer f to a file opened for writing
@@ -137,7 +52,6 @@ int CountLivingNeighbors(bmap_t* ltl, int i, int j, int r ){
  {
      int i, j;
      const int n = ltl->n;
-
      fprintf(f, "P1\n");
      fprintf(f, "# produced by ltl\n");
      fprintf(f, "%d %d\n", n, n);
@@ -148,7 +62,63 @@ int CountLivingNeighbors(bmap_t* ltl, int i, int j, int r ){
          fprintf(f, "\n");
      }
  }
+ /*Count how many neighbors are living in the range */
+ int CountLivingNeighbors(cell_t* cur,int n, int i, int j, int r )
+ {
+	int count = 0;
+	int x = i - r ;
+	int y = j -r;
+	if( j < r){
+		y = 1;
+	}
+	if( i < r ){
+		x = 1;
+	}
+	int z = (r*2) + 1;
+	for (int d = 0 ; d < z ; d++ ){
+		for( int k = 0; k < z ; k ++){
 
+			if (*IDX(cur, n, x + d, y + k) == 1){
+				count ++;
+
+			}
+		}
+	}
+	return count;
+}
+ /*Compute of the Larger than life*/
+ void compute_ltl( cell_t *cur, cell_t *next, int nc, int r, int b1, int b2, int d1, int d2)
+ {
+    int i, j;
+    const int n = nc;
+   	 for (i = 0; i < n; i++)
+   	  {
+       for (j = 0; j < n; j++)
+        {
+          if(*IDX(cur, n, i, j) == 0)//if the cell is died
+          {
+           	int c = CountLivingNeighbors(cur, n, i, j , r);
+            if( b1 <= c && c <= b2){ // if it can relive
+               *IDX(next, n, i, j) = 1; //Set it as live
+            }else // if the cell remaining died
+            {
+            	*IDX(next, n, i, j) = *IDX(cur, n, i, j) ; 
+            }
+          }
+          if(*IDX(cur, n, i, j) == 1)//if is living
+          {
+            int c = CountLivingNeighbors(cur,n, i, j , r) + 1;
+            if( d1 <= c && c <= d2){ // if it has to remain live
+            	*IDX(next, n, i, j) = *IDX(cur, n, i, j) ; //Remaining live
+            }else
+            {
+                *IDX(next, n, i, j) = 0; // set it as died
+            }
+          }
+       }
+     }
+ 	}
+ 
  /**
   * Read a PBM file from file f. The caller is responsible for passing
   * a pointer f to a file opened for reading. This function is not very
@@ -157,59 +127,60 @@ int CountLivingNeighbors(bmap_t* ltl, int i, int j, int r ){
   * PBM images produced by Gimp (you must save them in "ASCII format"
   * when prompted).
   */
-    /*Leggere le matrici di char con la mappa ltl*/
  void read_ltl( bmap_t *ltl, FILE* f )
  {
 
-     char buf[2048];
-     char *s;
-     int n, i, j;
-     int width, height;
+    char buf[2048];
+    char *s;
+    int n, i, j;
+    int width, height;
 
      /* Get the file type (must be "P1") */
-     s = fgets(buf, sizeof(buf), f);
-     if (0 != strcmp(s, "P1\n")) {
-         fprintf(stderr, "FATAL: Unsupported file type \"%s\"\n", buf);
-         exit(-1);
-     }
-     /* Get any comment and ignore it; does not work if there are
-        leading spaces in the comment line */
-     do {
-         s = fgets(buf, sizeof(buf), f);
-     } while (s[0] == '#');
-     /* Get width, height; since we are assuming square images, we
-        reject the input if width != height. */
-     sscanf(s, "%d %d", &width, &height);
-     if ( width != height ) {
-         fprintf(stderr, "FATAL: image width (%d) and height (%d) must be equal\n", width, height);
-         exit(-1);
-     }
-     ltl->n = n = width;
-     ltl->bmap = (cell_t*)malloc( n * n * sizeof(cell_t));
-     /* scan bitmap; each pixel is represented by a single numeric
-        character ('0' or '1'); spaces and other separators are ignored
-        (Gimp produces PBM files with no spaces between digits) */
-     for (i=0; i<n; i++) {
-         for (j=0; j<n; j++) {
-             int val;
-             do {
-                 val = fgetc(f);
-                 if ( EOF == val ) {
-                     fprintf(stderr, "FATAL: error reading input\n");
-                     exit(-1);
-                 }
-             } while ( !isdigit(val) );
-             *IDX(ltl->bmap, n, i, j) = (val - '0');
-         }
-     }
+    s = fgets(buf, sizeof(buf), f);
+    if (0 != strcmp(s, "P1\n")) {
+        fprintf(stderr, "FATAL: Unsupported file type \"%s\"\n", buf);
+        exit(-1);
+    }
+    /* Get any comment and ignore it; does not work if there are
+       leading spaces in the comment line */
+    do {
+        s = fgets(buf, sizeof(buf), f);
+    } while (s[0] == '#');
+    /* Get width, height; since we are assuming square images, we
+       reject the input if width != height. */
+    sscanf(s, "%d %d", &width, &height);
+    if ( width != height ) {
+        fprintf(stderr, "FATAL: image width (%d) and height (%d) must be equal\n", width, height);
+        exit(-1);
+    }
+    ltl->n = n = width;
+    ltl->bmap = (cell_t*)malloc( n * n * sizeof(cell_t));
+    /* scan bitmap; each pixel is represented by a single numeric
+       character ('0' or '1'); spaces and other separators are ignored
+       (Gimp produces PBM files with no spaces between digits) */
+    for (i = 0; i < n; i++) {
+         for (j = 0; j < n; j++) {
+            int val;
+            do {
+                val = fgetc(f);
+                if ( EOF == val ) {
+                    fprintf(stderr, "FATAL: error reading input\n");
+                    exit(-1);
+                }
+            } while ( !isdigit(val) );
+            *IDX(ltl->bmap, n, i, j) = (val - '0');
+        }
+    }
  }
 
  int main( int argc, char* argv[] )
  {
-     int R, B1, B2, D1, D2, nsteps;
+     int R, B1, B2, D1, D2, nsteps,s;
      const char *infile, *outfile;
      FILE *in, *out;
-     bmap_t cur;
+     bmap_t cur, next, tmp;
+     double tstart, tend;
+     
 
      if ( argc != 9 ) {
          fprintf(stderr, "Usage: %s R B1 B2 D1 D2 nsteps infile outfile\n", argv[0]);
@@ -247,13 +218,25 @@ int CountLivingNeighbors(bmap_t* ltl, int i, int j, int r ){
          fprintf(stderr, "FATAL: can not open \"%s\" for writing", outfile);
          exit(-1);
      }
+     const int n = cur.n;
+     next.n = n;
+     next.bmap = (cell_t*)malloc( n * n * sizeof(cell_t));
+     tstart = hpc_gettime();
+    for (s = 0; s < nsteps; s++) {
+     	compute_ltl(cur.bmap,next.bmap, n, R,B1,B2,D1,D2);
+        tmp = cur;
+        cur = next;
+        next = tmp;
+    }
+    tend = hpc_gettime();
+    fprintf(stderr, "Execution time %f\n", tend - tstart);
 
-     		compute_ltl(&cur,R,B1,B2,D1,D2,nsteps,out);
-  //   write_ltl(&cur, out);
+    write_ltl(&cur, out);
 
-     fclose(out);
+    fclose(out);
 
-     free(cur.bmap);
+    free(cur.bmap);
+    free(next.bmap);
 
      return 0;
  }
