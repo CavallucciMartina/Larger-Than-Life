@@ -38,10 +38,81 @@
  /* Returns a pointer to the cell of coordinates (i,j) in the bitmap
     bmap */
     /*Ritorna il valore di una cella date le coordinate */
- cell_t *IDX(cell_t *bmap, int n, int i, int j)
+ cell_t *IDX(cell_t *bmap, int n, int i, int j, int r)
  {
-     return bmap + i*n + j;
+     //return bmap + i * n + j;
+ 	return bmap + ((i)*(n +(2*r))+(j));
  }
+
+/* Fill the ghost cells of |grid| */
+//le ghost cell dipendono da r!!!
+//size*2r+1 ->size della mappa
+// ghost cell farle sbordare di r per non andare out of bound
+
+void copy_sides( cell_t *grid, int n, int r)
+{
+	const int ISTART = r;
+	const int IEND   = n + r - 1;
+	const int JSTART = r;
+	const int JEND   = n + r - 1;
+    int i, j;
+    /* copy top and bottom (one can also use memcpy() ) */
+    for (j=JSTART; j<JEND; j++) {
+      for( int k = 1; k < r; k++){
+        *IDX(grid, n, IEND + k, j) = *IDX(grid, n, ISTART + k - 1, j);
+        *IDX(grid, n, ISTART - k, j) = *IDX(grid, n, IEND - k + 1, j);
+      }
+    }
+  /*  	*IDX(grid, n, IEND + 1, j) = *IDX(grid, n, ISTART, j);
+    	*IDX(grid, n, ISTART-1, j) = *IDX(grid, n, IEND, j);
+       // grid[IDX(IEND+1  ,j)] = grid[IDX(ISTART,j)];  take to game of life
+       // grid[IDX(ISTART-1,j)] = grid[IDX(IEND  ,j)];
+    }
+    /* copy left and right */
+    for (i=ISTART; i<IEND; i++) {
+      for(int k=1; k< r; k++){
+        *IDX(grid, n, i, JEND + k) = *IDX(grid, n, i, JSTART + k - 1);
+          *IDX(grid, n, i, JSTART - k) = *IDX(grid, n, i, JEND + k - 1);
+    /*	*IDX(grid, n, i, JEND +1) = *IDX(grid, n, i, JSTART);
+    	*IDX(grid, n, i, JSTART-1) = *IDX(grid, n, i, JEND);
+       // grid[IDX(i,JEND+1  )] = grid[IDX(i,JSTART)];
+       // grid[IDX(i,JSTART-1)] = grid[IDX(i,JEND  )];*/
+    }
+  }
+
+    /* copy corners */
+    for(int k= 1 ; k < r ; k++){
+    	*IDX(grid, n, ISTART-k, JSTART-k) = *IDX(grid, n, IEND - k + 1, JEND - k + 1);//ok
+                  // 1          1
+                  //0           0
+    	*IDX(grid, n, ISTART - k, JEND + k) = *IDX(grid, n, IEND - k + 1  , JSTART + k - 1 );//ok
+                //  1           5
+                //0             6
+
+    	*IDX(grid, n, IEND+k, JSTART-k) = *IDX(grid, n, ISTART + k - 1, JEND - k + 1 ); // ok
+                    //5         1
+                    //6         0
+    	*IDX(grid, n, IEND+k, JEND+k) = *IDX(grid, n, ISTART + k -1 ,JSTART + k - 1);//
+                    //5     //5
+                    //6     //6
+    }
+
+    for(int i=0; i < r ; i++){
+      for(int j= 0; j < r ; j++){
+        *IDX(grid, n, i ,j) = *IDX(grid, n, r + 1,r + 1 );//ok
+      }
+    }
+    /*
+    grid[IDX(ISTART-1,JSTART-1)] = grid[IDX(IEND  ,JEND  )];
+    grid[IDX(ISTART-1,JEND+1  )] = grid[IDX(IEND  ,JSTART)];
+    grid[IDX(IEND+1  ,JSTART-1)] = grid[IDX(ISTART,JEND  )];
+    grid[IDX(IEND+1  ,JEND+1  )] = grid[IDX(ISTART,JSTART)];
+    */
+}
+
+
+
+
   /**
   * Write the content of the bmap_t structure pointed to by ltl to the
   * file f in PBM format. The caller is responsible for passing a
@@ -55,8 +126,12 @@
      fprintf(f, "P1\n");
      fprintf(f, "# produced by ltl\n");
      fprintf(f, "%d %d\n", n, n);
-     for (i=0; i<n; i++) {
-         for (j=0; j<n; j++) {
+     const int ISTART = 1;
+	const int IEND   = n;
+	const int JSTART = 1;
+	const int JEND   = n;
+     for (i=ISTART; i<IEND+1; i++) {
+        for (j=JSTART; j<JEND+1; j++) {
              fprintf(f, "%d ", *IDX(ltl->bmap, n, i, j));
          }
          fprintf(f, "\n");
@@ -66,7 +141,7 @@
  int CountLivingNeighbors(cell_t* cur,int n, int i, int j, int r )
  {
 	int count = 0;
-	int x = i - r ;
+	/*int x = i - r ;
 	int y = j -r;
 	if( j < r){
 		y = 1;
@@ -83,7 +158,21 @@
 
 			}
 		}
-	}
+	}*/
+	 const int ISTART = 1;
+	const int IEND   = n;
+	const int JSTART = 1;
+	const int JEND   = n;
+	int x = ISTART - r;
+	int k = JSTART - r ;
+     for (i=ISTART; i<IEND+1; i++) {
+        for (j=JSTART; j<JEND+1; j++) {
+             if(*IDX(cur, n , i + x, j + k ) == 1){
+             	count ++;
+             }
+         }
+
+     }
 	return count;
 }
  /*Compute of the Larger than life*/
@@ -91,9 +180,13 @@
  {
     int i, j;
     const int n = nc;
-   	 for (i = 0; i < n; i++)
+    const int ISTART = 1;
+	const int IEND   = n;
+	const int JSTART = 1;
+	const int JEND   = n;
+   	 for (i = ISTART; i < IEND + 1; i++)
    	  {
-       for (j = 0; j < n; j++)
+       for (j = JSTART; j < JEND + 1; j++)
         {
           if(*IDX(cur, n, i, j) == 0)//if the cell is died
           {
@@ -102,7 +195,7 @@
                *IDX(next, n, i, j) = 1; //Set it as live
             }else // if the cell remaining died
             {
-            	*IDX(next, n, i, j) = *IDX(cur, n, i, j) ; 
+            	*IDX(next, n, i, j) = *IDX(cur, n, i, j) ;
             }
           }
           if(*IDX(cur, n, i, j) == 1)//if is living
@@ -118,7 +211,7 @@
        }
      }
  	}
- 
+
  /**
   * Read a PBM file from file f. The caller is responsible for passing
   * a pointer f to a file opened for reading. This function is not very
@@ -127,7 +220,7 @@
   * PBM images produced by Gimp (you must save them in "ASCII format"
   * when prompted).
   */
- void read_ltl( bmap_t *ltl, FILE* f )
+ void read_ltl( bmap_t *ltl, FILE* f, int r)
  {
 
     char buf[2048];
@@ -154,12 +247,17 @@
         exit(-1);
     }
     ltl->n = n = width;
-    ltl->bmap = (cell_t*)malloc( n * n * sizeof(cell_t));
+    const int ISTART = 1;
+	const int IEND   = n;
+	const int JSTART = 1;
+	const int JEND   = n;
+    int ng = n + (2*r);
+    ltl->bmap = (cell_t*)malloc( ng * ng * sizeof(cell_t));
     /* scan bitmap; each pixel is represented by a single numeric
        character ('0' or '1'); spaces and other separators are ignored
        (Gimp produces PBM files with no spaces between digits) */
-    for (i = 0; i < n; i++) {
-         for (j = 0; j < n; j++) {
+    for (i = ISTART; i < IEND + r ; i++) {
+         for (j = JSTART; j < JEND + r ; j++) {
             int val;
             do {
                 val = fgetc(f);
@@ -168,7 +266,7 @@
                     exit(-1);
                 }
             } while ( !isdigit(val) );
-            *IDX(ltl->bmap, n, i, j) = (val - '0');
+            *IDX(ltl->bmap, n, i, j, r) = (val - '0');
         }
     }
  }
@@ -178,9 +276,9 @@
      int R, B1, B2, D1, D2, nsteps,s;
      const char *infile, *outfile;
      FILE *in, *out;
-     bmap_t cur, next, tmp;
+     bmap_t cur, next;
      double tstart, tend;
-     
+
 
      if ( argc != 9 ) {
          fprintf(stderr, "Usage: %s R B1 B2 D1 D2 nsteps infile outfile\n", argv[0]);
@@ -201,13 +299,16 @@
      assert(  1 <= D1 );
      assert( D1 <= D2 );
 
+
      in = fopen(infile, "r");
      if (in == NULL) {
          fprintf(stderr, "FATAL: can not open \"%s\" for reading\n", infile);
          exit(-1);
      }
-     read_ltl(&cur, in);
+
+     read_ltl(&cur, in, R);
      fclose(in);
+
 
      fprintf(stderr, "Size of input image: %d x %d\n", cur.n, cur.n);
      fprintf(stderr, "Model parameters: R=%d B1=%d B2=%d D1=%d D2=%d nsteps=%d\n",
@@ -218,16 +319,27 @@
          fprintf(stderr, "FATAL: can not open \"%s\" for writing", outfile);
          exit(-1);
      }
-     const int n = cur.n;
-     next.n = n;
-     next.bmap = (cell_t*)malloc( n * n * sizeof(cell_t));
+      const int n = cur.n;
+       int ng = n + 2;
+        next.n = n;
+     next.bmap = (cell_t*)malloc( ng * ng * sizeof(cell_t));
+
+
+
+
      tstart = hpc_gettime();
+
+
     for (s = 0; s < nsteps; s++) {
-     	compute_ltl(cur.bmap,next.bmap, n, R,B1,B2,D1,D2);
+    	bmap_t tmp;
+    	copy_sides(cur.bmap, n , R);
+     	compute_ltl(cur.bmap, next.bmap, n, R, B1, B2, D1, D2);
         tmp = cur;
         cur = next;
         next = tmp;
     }
+
+
     tend = hpc_gettime();
     fprintf(stderr, "Execution time %f\n", tend - tstart);
 
