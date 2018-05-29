@@ -58,7 +58,7 @@ void copy_sides( cell_t *grid, int n, int r)
     int i, j;
     /* copy top and bottom (one can also use memcpy() ) */
     for (j=JSTART; j<JEND; j++) {
-      for( int k = 1; k < r; k++){
+      for( int k = 1; k < r + 1; k++){
         *IDX(grid, n, IEND + k, j, r) = *IDX(grid, n, ISTART + k - 1, j, r);
         *IDX(grid, n, ISTART - k, j, r) = *IDX(grid, n, IEND - k + 1, j, r);
       }
@@ -70,7 +70,7 @@ void copy_sides( cell_t *grid, int n, int r)
     }*/
     /* copy left and right */
     for (i=ISTART; i<IEND; i++) {
-      for(int k=1; k< r; k++){
+      for(int k=1; k< r + 1; k++){
         *IDX(grid, n, i, JEND + k, r) = *IDX(grid, n, i, JSTART + k - 1, r);
           *IDX(grid, n, i, JSTART - k, r) = *IDX(grid, n, i, JEND + k - 1, r);
     /*	*IDX(grid, n, i, JEND +1) = *IDX(grid, n, i, JSTART);
@@ -130,11 +130,11 @@ void copy_sides( cell_t *grid, int n, int r)
      fprintf(f, "# produced by ltl\n");
      fprintf(f, "%d %d\n", n, n);
      const int ISTART = r;
-    const int IEND   = n + r - 1;
+    const int IEND   = n + r;
     const int JSTART = r;
-    const int JEND   = n + r - 1;
-     for (i=ISTART; i<IEND+1; i++) {
-        for (j=JSTART; j<JEND+1; j++) {
+    const int JEND   = n + r ;
+     for (i=ISTART; i<IEND; i++) {
+        for (j=JSTART; j<JEND; j++) {
              fprintf(f, "%d ", *IDX(ltl->bmap, n, i, j, r));
          }
          fprintf(f, "\n");
@@ -143,14 +143,17 @@ void copy_sides( cell_t *grid, int n, int r)
  /*Count how many neighbors are living in the range */
  int CountLivingNeighbors(cell_t* cur,int n, int i, int j, int r )
  {
-	int nbors = 4;
-         for( int k = 1 ; k < r ; k++){ //THIS IS THE PROBLEM
-               int nbors = nbors +
+
+int nbors = 0;
+         for(int k = 1 ; k < r + 1 ; k++){ //THIS IS THE PROBLEM
+                nbors = nbors +
                        *IDX(cur,n, i-k,j-k, r) + *IDX(cur, n, i-k,j, r) + *IDX(cur, n,i-k,j+k, r) +
                        *IDX(cur,n,i  ,j-k,r) +                   *IDX(cur,n,i  ,j+k, r) +
                        *IDX(cur,n,i + k,j - k,r) + *IDX(cur,n,i+k,j,r) + *IDX(cur,n,i+k,j+k,r);
-          }
 
+
+          }
+       printf("%d",nbors);
 	return nbors;
 }
  /*Compute of the Larger than life*/
@@ -159,22 +162,22 @@ void copy_sides( cell_t *grid, int n, int r)
     int i, j;
     const int n = nc;
     const int ISTART = r;
-  	const int IEND   = n + r - 1;
+  	const int IEND   = n + r;
   	const int JSTART = r;
-  	const int JEND   = n + r - 1;
-   	 for (i = ISTART; i < IEND + 1; i++)
+  	const int JEND   = n + r;
+   	 for (i = ISTART; i < IEND ; i++)
    	  {
-       for (j = JSTART; j < JEND + 1; j++)
+       for (j = JSTART; j < JEND; j++)
         {
       //    printf("%d\n", *IDX(cur, n, i, j, r));
           if(*IDX(cur, n, i, j, r) == 0)//if the cell is died
           {
 
            	int c = CountLivingNeighbors(cur, n, i, j , r);
-            printf("%d",c);
+
             if( b1 <= c && c <= b2){ // if it can relive
                *IDX(next, n, i, j, r) = 1; //Set it as live
-               printf("%d\n", *IDX(next, n, i, j, r));
+              // printf("%d\n", *IDX(next, n, i, j, r));
             }else // if the cell remaining died
             {
             	*IDX(next, n, i, j,r ) = *IDX(cur, n, i, j, r) ;
@@ -230,16 +233,16 @@ void copy_sides( cell_t *grid, int n, int r)
     }
     ltl->n = n = width;
     const int ISTART = r;
-  	const int IEND   = n + r - 1;
+  	const int IEND   = n + r;
   	const int JSTART = r;
-  	const int JEND   = n + r - 1;
+  	const int JEND   = n + r ;
     int ng = n + (2*r);
     ltl->bmap = (cell_t*)malloc( ng * ng * sizeof(cell_t));
     /* scan bitmap; each pixel is represented by a single numeric
        character ('0' or '1'); spaces and other separators are ignored
        (Gimp produces PBM files with no spaces between digits) */
-    for (i = ISTART; i < IEND + 1 ; i++) {
-         for (j = JSTART; j < JEND + 1 ; j++) {
+    for (i = ISTART; i < IEND ; i++) {
+         for (j = JSTART; j < JEND ; j++) {
             int val;
             do {
                 val = fgetc(f);
@@ -287,17 +290,6 @@ void copy_sides( cell_t *grid, int n, int r)
      }
 
      read_ltl(&cur, in, R);
-  /*   const int ISTART = R;
-    const int IEND   = cur.n + R - 1;
-    const int JSTART = R;
-    const int JEND   = cur.n + R - 1;
-     for (int i = ISTART; i < IEND + 1 ; i++) {
-          for (int j = JSTART; j < JEND + 1 ; j++) {
-
-          printf("%d",*IDX(cur.bmap, cur.n, i, j, R));
-         }
-     }
-*/
      fclose(in);
 
      fprintf(stderr, "Size of input image: %d x %d\n", cur.n, cur.n);
@@ -328,20 +320,20 @@ void copy_sides( cell_t *grid, int n, int r)
 
     for (s = 0; s < nsteps; s++) {
     	bmap_t tmp;
-
     	copy_sides(cur.bmap, n , R);
       copy_sides(next.bmap, n , R);
      	compute_ltl(cur.bmap, next.bmap, n, R, B1, B2, D1, D2);
         tmp = cur;
         cur = next;
         next = tmp;
+
     }
 
 
     tend = hpc_gettime();
     fprintf(stderr, "Execution time %f\n", tend - tstart);
 
-    write_ltl(&cur, out, R);
+      write_ltl(&cur, out, R);
 
     fclose(out);
 
