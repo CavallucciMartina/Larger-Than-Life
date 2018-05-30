@@ -145,15 +145,15 @@ void copy_sides( cell_t *grid, int n, int r)
  {
 
 int nbors = 0;
-         for(int k = 1 ; k < r + 1 ; k++){ //THIS IS THE PROBLEM
+         for(int k = 1 ; k < r + 1 ; k++){
+              for(int f= 1 ; f < r + 1 ; f++){
                 nbors = nbors +
-                       *IDX(cur,n, i-k,j-k, r) + *IDX(cur, n, i-k,j, r) + *IDX(cur, n,i-k,j+k, r) +
-                       *IDX(cur,n,i  ,j-k,r) +                   *IDX(cur,n,i  ,j+k, r) +
-                       *IDX(cur,n,i + k,j - k,r) + *IDX(cur,n,i+k,j,r) + *IDX(cur,n,i+k,j+k,r);
+                       *IDX(cur,n, i-k,j-f, r) + *IDX(cur, n, i-k,j, r) + *IDX(cur, n,i-k,j+f, r) +
+                       *IDX(cur,n,i  ,j-f,r) +                   *IDX(cur,n,i  ,j+f, r) +
+                       *IDX(cur,n,i + k,j - f,r) + *IDX(cur,n,i+k,j,r) + *IDX(cur,n,i+k,j+f,r);
 
-
+                     }
           }
-       printf("%d",nbors);
 	return nbors;
 }
  /*Compute of the Larger than life*/
