@@ -27,63 +27,48 @@
 
  typedef unsigned char cell_t;
 
- /* This struct is defined here as an example; it is possible to modify
-    this definition, or remove it altogether if you prefer to pass
-    around the pointer to the bitmap directly. */
+ /* The struct of the bmap_t with a size and a point of unsigned char */
  typedef struct {
      int n;
      cell_t *bmap;
  } bmap_t;
 
- /* Returns a pointer to the cell of coordinates (i,j) in the bitmap
-    bmap */
-    /*Ritorna il valore di una cella date le coordinate */
- cell_t *IDX(cell_t *bmap, int n, int i, int j, int r)
+ /* Returns a pointer to the cell of coordinates (i,j) in the bitmap grid
+    with the HALO included.
+  */
+
+ cell_t *IDX(cell_t *grid, int n, int i, int j, int r)
  {
      //return bmap + i * n + j;
- 	return bmap + ((i)*(n +(2*r))+(j));
+ 	return grid + ((i)*(n +(2*r))+(j));
  }
 
-/* Fill the ghost cells of |grid| */
-//le ghost cell dipendono da r!!!
-//size*2r+1 ->size della mappa
-// ghost cell farle sbordare di r per non andare out of bound
+/* Fill the ghost cells of |grid| in order to have cyclic boundary conditions*/
 
-void copy_sides( cell_t *grid, int n, int r)
+void fill_ghost( cell_t *grid, int n, int r)
 {
-	const int ISTART = r;
-	const int IEND   = n + r - 1;
-	const int JSTART = r;
-	const int JEND   = n + r - 1;
+	 int ISTART = r;
+   int JSTART = r;
+	 int IEND= n + r - 1;
+   int JEND = n + r - 1;
     int i, j;
-    /* copy top and bottom (one can also use memcpy() ) */
+    /* copy top and bottom */
     for (j=JSTART; j<JEND; j++) {
       for( int k = 1; k < r + 1; k++){
         *IDX(grid, n, IEND + k, j, r) = *IDX(grid, n, ISTART + k - 1, j, r);
         *IDX(grid, n, ISTART - k, j, r) = *IDX(grid, n, IEND - k + 1, j, r);
       }
     }
-  /*  	*IDX(grid, n, IEND + 1, j) = *IDX(grid, n, ISTART, j);
-    	*IDX(grid, n, ISTART-1, j) = *IDX(grid, n, IEND, j);
-       // grid[IDX(IEND+1  ,j)] = grid[IDX(ISTART,j)];  take to game of life
-       // grid[IDX(ISTART-1,j)] = grid[IDX(IEND  ,j)];
-    }*/
     /* copy left and right */
     for (i=ISTART; i<IEND; i++) {
       for(int k=1; k< r + 1; k++){
         *IDX(grid, n, i, JEND + k, r) = *IDX(grid, n, i, JSTART + k - 1, r);
           *IDX(grid, n, i, JSTART - k, r) = *IDX(grid, n, i, JEND + k - 1, r);
-    /*	*IDX(grid, n, i, JEND +1) = *IDX(grid, n, i, JSTART);
-    	*IDX(grid, n, i, JSTART-1) = *IDX(grid, n, i, JEND);
-       // grid[IDX(i,JEND+1  )] = grid[IDX(i,JSTART)];
-       // grid[IDX(i,JSTART-1)] = grid[IDX(i,JEND  )];*/
     }
   }
-
     /* copy corners */
-    //n = size r = raggio
-      for (i=0; i < r ; i++) {
-        for (j=0; j < r; j++) {
+      for (i = 0; i < r ; i++) {
+        for (j = 0; j < r; j++) {
               // *IDX(grid, n, i ,j , r) = // 0 0 // 0 1  // 1 0 // 1  1
                *IDX(grid, n, i ,j , r) = *IDX(grid, n, i + r + 1, j + r + 1 , r);
               /// *IDX(grid, n, i + r + n ,j + r + n, r) = //5 5 // 6 6 // 5  6 // 6 5
@@ -94,105 +79,64 @@ void copy_sides( cell_t *grid, int n, int r)
                 *IDX(grid, n, i + r + n ,j, r) = *IDX(grid, n,i + r , j + r + 1 , r);
       }
     }
-
-/*    for(int k= 1 ; k < r ; k++){
-    	*IDX(grid, n, ISTART-k, JSTART-k) = *IDX(grid, n, IEND - k + 1, JEND - k + 1);//ok
-                  // 1          1
-                  //0           0
-    	*IDX(grid, n, ISTART - k, JEND + k) = *IDX(grid, n, IEND - k + 1  , JSTART + k - 1 );//ok
-                //  1           5
-                //0             6
-
-    	*IDX(grid, n, IEND+k, JSTART-k) = *IDX(grid, n, ISTART + k - 1, JEND - k + 1 ); // ok
-                    //5         1
-                    //6         0
-    	*IDX(grid, n, IEND+k, JEND+k) = *IDX(grid, n, ISTART + k -1 ,JSTART + k - 1);//
-                    //5     //5
-                    //6     //6
-    }
-*/
 }
-
-
-
 
   /**
   * Write the content of the bmap_t structure pointed to by ltl to the
-  * file f in PBM format. The caller is responsible for passing a
+  * file f in PBM format and and allocates space
+  *for the ghost cell that will be assigned.
+  * The caller is responsible for passing a
   * pointer f to a file opened for writing
   */
-  /*Scrivere le matrici di char con la mappa ltl*/
- void write_ltl( bmap_t* ltl, FILE *f , int  r )
+ void write_ltl( bmap_t* grid, FILE *f , int  r )
  {
      int i, j;
-     const int n = ltl->n;
+     const int n = grid->n;
      fprintf(f, "P1\n");
      fprintf(f, "# produced by ltl\n");
      fprintf(f, "%d %d\n", n, n);
-     const int ISTART = r;
-    const int IEND   = n + r;
-    const int JSTART = r;
-    const int JEND   = n + r ;
-     for (i=ISTART; i<IEND; i++) {
-        for (j=JSTART; j<JEND; j++) {
-             fprintf(f, "%d ", *IDX(ltl->bmap, n, i, j, r));
+     for (i= r ; i< n + r; i++) {
+        for (j= r ; j< n + r; j++) {
+             fprintf(f, "%d ", *IDX(grid->bmap, n, i, j, r));
          }
          fprintf(f, "\n");
      }
  }
- /*Count how many neighbors are living in the range */
- int CountLivingNeighbors(cell_t* cur,int n, int i, int j, int r )
+ /*Count how many neighbors are living in the range of i j element */
+ int count_neighbors(cell_t* cur,int n, int i, int j, int r )
  {
-
-int nbors = 0;
-         for(int k = 1 ; k < r + 1 ; k++){
-              for(int f= 1 ; f < r + 1 ; f++){
-                nbors = nbors +
-                       *IDX(cur,n, i-k,j-f, r) + *IDX(cur, n, i-k,j, r) + *IDX(cur, n,i-k,j+f, r) +
-                       *IDX(cur,n,i  ,j-f,r) +                   *IDX(cur,n,i  ,j+f, r) +
-                       *IDX(cur,n,i + k,j - f,r) + *IDX(cur,n,i+k,j,r) + *IDX(cur,n,i+k,j+f,r);
-
-                     }
+   int nbors = 0;
+  for(int k = 1 ; k < r + 1 ; k++){
+      for(int f= 1 ; f < r + 1 ; f++){
+          nbors = nbors +
+                 *IDX(cur,n, i-k,j-f, r) + *IDX(cur, n, i-k,j, r) + *IDX(cur, n,i-k,j+f, r) +
+                 *IDX(cur,n,i  ,j-f,r) +                            *IDX(cur,n,i  ,j+f, r) +
+                 *IDX(cur,n,i + k,j - f,r) + *IDX(cur,n,i+k,j,r) + *IDX(cur,n,i+k,j+f,r);
           }
+}
+
 	return nbors;
 }
  /*Compute of the Larger than life*/
  void compute_ltl( cell_t *cur, cell_t *next, int nc, int r, int b1, int b2, int d1, int d2)
  {
-    int i, j;
+    int i, j, element, c = 0;
     const int n = nc;
-    const int ISTART = r;
-  	const int IEND   = n + r;
-  	const int JSTART = r;
-  	const int JEND   = n + r;
-   	 for (i = ISTART; i < IEND ; i++)
+   	 for (i = r; i < n + r ; i++)
    	  {
-       for (j = JSTART; j < JEND; j++)
+       for (j = r; j < n + r; j++)
         {
-      //    printf("%d\n", *IDX(cur, n, i, j, r));
-          if(*IDX(cur, n, i, j, r) == 0)//if the cell is died
-          {
+           	c = count_neighbors(cur, n, i, j , r);
+            element = *IDX(cur, n, i, j, r);
 
-           	int c = CountLivingNeighbors(cur, n, i, j , r);
-
-            if( b1 <= c && c <= b2){ // if it can relive
+            if( !element && c >= b1 && c <= b2){ // if it can relive
                *IDX(next, n, i, j, r) = 1; //Set it as live
-              // printf("%d\n", *IDX(next, n, i, j, r));
-            }else // if the cell remaining died
+            }else if( element && c + 1 >= d1 && c + 1 <= d2) // if the cell remaining live
             {
-            	*IDX(next, n, i, j,r ) = *IDX(cur, n, i, j, r) ;
+            	*IDX(next, n, i, j,r ) = 1;
+            }else{
+              *IDX(next, n, i, j, r) = 0; // set it as died
             }
-          }
-          if(*IDX(cur, n, i, j, r) == 1)//if is living
-          {
-            int c = CountLivingNeighbors(cur,n, i, j , r) + 1;
-            if( d1 <= c && c <= d2){ // if it has to remain live
-            	*IDX(next, n, i, j, r) = *IDX(cur, n, i, j, r) ; //Remaining live
-            }else
-            {
-                *IDX(next, n, i, j, r) = 0; // set it as died
-            }
-          }
        }
      }
  	}
@@ -320,8 +264,7 @@ int nbors = 0;
 
     for (s = 0; s < nsteps; s++) {
     	bmap_t tmp;
-    	copy_sides(cur.bmap, n , R);
-      copy_sides(next.bmap, n , R);
+    	fill_ghost(cur.bmap, n , R);
      	compute_ltl(cur.bmap, next.bmap, n, R, B1, B2, D1, D2);
         tmp = cur;
         cur = next;
@@ -333,7 +276,7 @@ int nbors = 0;
     tend = hpc_gettime();
     fprintf(stderr, "Execution time %f\n", tend - tstart);
 
-      write_ltl(&cur, out, R);
+    write_ltl(&cur, out, R);
 
     fclose(out);
 
