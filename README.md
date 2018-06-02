@@ -1,2 +1,2 @@
 # Larger-Than-Life
- the game of  life (GoL) amplified using OPEN_MPI and MPI Programming in C.
+ the game of  life (GoL) amplified using OPEN_MP and CUDA Programming in C.
