@@ -209,8 +209,8 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
      int R, B1, B2, D1, D2, nsteps,s;
      const char *infile, *outfile;
      FILE *in, *out;
-     bmap_t cur,
-     bmap_t d_cur, d_next, d_tmp;
+     bmap_t cur;
+     cell_t d_cur, d_next, d_tmp;
      double tstart, tend;
      if ( argc != 9 ) {
          fprintf(stderr, "Usage: %s R B1 B2 D1 D2 nsteps infile outfile\n", argv[0]);
@@ -237,14 +237,14 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
          exit(-1);
      }
 
-
+    const int n = cur.n;
 
          dim3 cpyBlock(BLKSIZE_GHOST,R);
-         dim3 cpyGrid(( n + 2 *r + BLKSIZE_GHOST - 1) / BLKSIZE_GHOST,1);
+         dim3 cpyGrid(( n + 2 *R + BLKSIZE_GHOST - 1) / BLKSIZE_GHOST,1);
          dim3 stepBlock(BLKSIZE,BLKSIZE);
          dim3 stepGrid((n + BLKSIZE-1)/BLKSIZE, (n + BLKSIZE-1)/BLKSIZE);
 
-         cost size_t size = (n+2*HALO)*(n+2*HALO)*sizeof(cur);
+         const size_t size = (n+2*R)*(n+2*R)*sizeof(cur->bmap);
 
          /* Allocate space for device copy of cur and next grids */
          cudaMalloc((void**)&d_cur, size);
@@ -261,14 +261,14 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
          fprintf(stderr, "FATAL: can not open \"%s\" for writing", outfile);
          exit(-1);
      }
-    const int n = cur.n;
+
     /* Copy initial grid to d_cur */
 cudaMemcpy(d_cur, cur, size, cudaMemcpyHostToDevice);
 
 
      tstart = hpc_gettime();
      for (s = 0; s < nsteps; s++) {
-    	  bmap_t tmp;
+
     	  //fill_ghost(cur.bmap, n , R);
         fill_ghost<<<cpyGrid,cpyBlock>>>(d_cur,n,R);
      	  compute_ltl<<<stepGrid,stepBlock>>>(d_cur, d_next, n, R, B1, B2, D1, D2);
@@ -279,7 +279,7 @@ cudaMemcpy(d_cur, cur, size, cudaMemcpyHostToDevice);
       cudaDeviceSynchronize();
     tend = hpc_gettime();
     fprintf(stderr, "Execution time %f\n", tend - tstart);
-      cudaMemcpy(cur, d_cur, size, cudaMemcpyDeviceToHost);
+    cudaMemcpy(cur->bmap, d_cur, size, cudaMemcpyDeviceToHost);
     write_ltl(&cur, out, R);
     fclose(out);
     free(cur);
