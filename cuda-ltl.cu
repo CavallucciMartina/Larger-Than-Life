@@ -58,11 +58,12 @@ presence of 8 rows / columns of ghost cells per side, then using only those that
  }
 
 /* Fill the ghost cells of |grid| in order to have cyclic boundary conditions*/
-
-__global__ void fill_ghost( cell_t *grid, int n, int r)
+/*c'era global, da sistemare con threads*/
+void fill_ghost( cell_t *grid, int n, int r)
 {
 	 int start = r;
 	 int end = n + r - 1;
+       printf("fill");
     int i, j;
     /* copy top and bottom */
     for( int k = 1; k < r + 1; k++){
@@ -108,7 +109,7 @@ __global__ void fill_ghost( cell_t *grid, int n, int r)
          fprintf(f, "\n");
      }
  }
-/*Count how many neighbors are living in the range of i j element */
+/*Count how many neighbors are living in the range of i j element
  __device__ int count_neighbors(cell_t cur,int n, int i, int j, int r )
  {
    /*int nbors = 0;
@@ -124,46 +125,50 @@ __global__ void fill_ghost( cell_t *grid, int n, int r)
 
     }
   }
-	return nbors;*/
-}
+	return ;
+}*/
  /*Compute of the Larger than life*/
 __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, int b2, int d1, int d2)
  {
    /*we assume the presence of 8 rows / columns of ghost cells per side,
     then using only those that serve*/
-  extern   __shared__ cell_t buf[BLKSIZE+2*HALO][BLKSIZE+2*HALO];
+    /*c'era extern*/
+
+  __shared__ cell_t buf[BLKSIZE+2*HALO][BLKSIZE+2*HALO];
 
    /* "global" indexes */
    const int gi = HALO + threadIdx.y + blockIdx.y * blockDim.y;
    const int gj = HALO + threadIdx.x + blockIdx.x * blockDim.x;
    /* "local" indexes */
-   const int lindex = HALO + threadIdx.x;
+  // const int lindex = HALO + threadIdx.x;
    const int li = HALO + threadIdx.y;
    const int lj = HALO + threadIdx.x;
-    int   c = 0;
+   printf("compute");
+    //int   c = 0;
     /*Copy elements from global memory to local memory of block*/
     if ( gi<n+2*HALO && gj<n+2*HALO ) {
-        buf[li][lj] = *IDX(cur, n, gi, gj);
+        buf[li][lj] = *IDX(cur, n, gi, gj,HALO);
         if (li < 2*HALO) { /* left-right */
-            buf[li-HALO   ][lj] = *IDX(cur, n, gi-HALO,    gj);
-            buf[li+BLKSIZE][lj] = (gi+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi+BLKSIZE, gj) : 0);
+            buf[li-HALO   ][lj] = *IDX(cur, n, gi-HALO,    gj,HALO);
+            buf[li+BLKSIZE][lj] = (gi+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi+BLKSIZE, gj,HALO) : 0);
         }
+
         if (lj < 2*HALO) { /* top-bottom */
-            buf[li][lj-HALO   ] = *IDX(cur, n, gi, gj-HALO);
-            buf[li][lj+BLKSIZE] = (gj+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi, gj+BLKSIZE) : 0);
+            buf[li][lj-HALO   ] = *IDX(cur, n, gi, gj-HALO,HALO);
+            buf[li][lj+BLKSIZE] = (gj+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi, gj+BLKSIZE,HALO) : 0);
         }
         if (li < 2*HALO && lj < 2*HALO) { /* corners */
-            buf[li-HALO   ][lj-HALO   ] = *IDX(cur, n, gi-HALO, gj-HALO);
-            buf[li-HALO   ][lj+BLKSIZE] = (gj+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi-HALO, gj+BLKSIZE) : 0);
-            buf[li+BLKSIZE][lj-HALO   ] = (gi+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi+BLKSIZE, gj-HALO) : 0);
-            buf[li+BLKSIZE][lj+BLKSIZE] = (gi+BLKSIZE < n+2*HALO && gj+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi+BLKSIZE, gj+BLKSIZE) : 0);
+            buf[li-HALO   ][lj-HALO   ] = *IDX(cur, n, gi-HALO, gj-HALO,HALO);
+            buf[li-HALO   ][lj+BLKSIZE] = (gj+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi-HALO, gj+BLKSIZE,HALO) : 0);
+            buf[li+BLKSIZE][lj-HALO   ] = (gi+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi+BLKSIZE, gj-HALO,HALO) : 0);
+            buf[li+BLKSIZE][lj+BLKSIZE] = (gi+BLKSIZE < n+2*HALO && gj+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi+BLKSIZE, gj+BLKSIZE,HALO) : 0);
         }
     }
 
        __syncthreads();
-       const int glbali = gi - HALO +r;
-       const int glbalj = gj - HALO + r;
-       const int localii= li - HALO + +r ;
+       const int globali = gi - HALO +r;
+       const int globalj = gj - HALO + r;
+       const int locali= li - HALO  +r ;
        const int localj = lj - HALO + r;
        if ( globali < n+r && globalj < n+r ) {
         const int nbors =
@@ -171,9 +176,9 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
           buf[locali  ][localj-r]                 + buf[locali  ][localj+r] +
           buf[locali+r][localj-r] + buf[locali+r][localj] + buf[locali+r][localj+r];
 
-           if( !buf[locali][localj] && c >= b1 && c <= b2){ // if it can relive
+           if( !buf[locali][localj] && nbors >= b1 && nbors <= b2){ // if it can relive
               *IDX(next, n, globali, globalj, r) = 1; //Set it as live
-           }else if(buf[locali][localj] && c + 1 >= d1 && c + 1 <= d2) // if the cell remaining live
+           }else if(buf[locali][localj] && nbors + 1 >= d1 && nbors + 1 <= d2) // if the cell remaining live
            {
             *IDX(next, n, globali, globalj, r ) = 1;
            }else{
@@ -285,23 +290,21 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
      }
 
      const int n = cur.n;
-            dim3 cpyBlock(BLKSIZE_GHOST,R);
-            dim3 cpyGrid(( n + 2 *R + BLKSIZE_GHOST - 1) / BLKSIZE_GHOST,1);
-            dim3 stepBlock(BLKSIZE,BLKSIZE);
-            dim3 stepGrid((n + BLKSIZE-1)/BLKSIZE, (n + BLKSIZE-1)/BLKSIZE);
-
-            const size_t size = (n+2*R)*(n+2*R)*sizeof(cur.bmap);
+     dim3 cpyBlock(BLKSIZE_GHOST,R);
+     dim3 cpyGrid(( n + 2 *R + BLKSIZE_GHOST - 1) / BLKSIZE_GHOST,1);
+     dim3 stepBlock(BLKSIZE,BLKSIZE);
+     dim3 stepGrid((n + BLKSIZE-1)/BLKSIZE, (n + BLKSIZE-1)/BLKSIZE);
+     const size_t size = (n+2*R)*(n+2*R)*sizeof(cur.bmap);
 
             /* Allocate space for device copy of cur and next grids */
-            cudaMalloc((void**)&d_cur, size);
-            cudaMalloc((void**)&d_next, size);
+    cudaMalloc((void**)&d_cur, size);
+    cudaMalloc((void**)&d_next, size);
     /* Copy initial grid to d_cur */
 	   cudaMemcpy(d_cur, cur.bmap, size, cudaMemcpyHostToDevice);
      tstart = hpc_gettime();
      for (s = 0; s < nsteps; s++) {
-
-    	  //fill_ghost(cur.bmap, n , R);
-        fill_ghost<<<cpyGrid,cpyBlock>>>(d_cur,n,R);
+    	  fill_ghost(cur.bmap, n , R);
+        //fill_ghost<<<cpyGrid,cpyBlock>>>(d_cur,n,R);
         /*
         step<<<numBlocks, threadsPerBlock,(BLKSIZE+2*R)*(BLKSIZE+2*R)*sizeof(cell_t)>>>
         */
@@ -310,6 +313,7 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
         d_cur = d_next;
         d_next = d_tmp;
     }
+
     cudaDeviceSynchronize();
     tend = hpc_gettime();
     fprintf(stderr, "Execution time %f\n", tend - tstart);
