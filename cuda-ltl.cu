@@ -54,40 +54,51 @@ presence of 8 rows / columns of ghost cells per side, then using only those that
 
  __device__ __host__ cell_t *IDX(cell_t *grid, int n, int i, int j, int r)
  {
- 	return grid + ((i)*(n +(2*r))+(j));
+ 	return (grid + i*(n +2*HALO)+j);
  }
 
 /* Fill the ghost cells of |grid| in order to have cyclic boundary conditions*/
-/*c'era global, da sistemare con threads*/
-void fill_ghost( cell_t *grid, int n, int r)
+__global__ void copy_top_bottom(cell_t *grid, int n,int r)
 {
-	 int start = r;
-	 int end = n + r - 1;
-       printf("fill");
-    int i, j;
-    /* copy top and bottom */
-    for( int k = 1; k < r + 1; k++){
-    for (j = start; j < end; j++) {
-        *IDX(grid, n, end + k, j, r) = *IDX(grid, n, start + k - 1, j, r);
-        *IDX(grid, n, start - k, j, r) = *IDX(grid, n, end - k + 1, j, r);
+
+  const int end = HALO + n - 1;
+  const int j = HALO + threadIdx.x + blockIdx.x * blockDim.x;
+  const int k =  threadIdx.y + blockIdx.y * blockDim.y + 1;
+  /* Copy top and bottom */
+  if( k < HALO + 1){
+    if ( j < end) {
+      *IDX(grid, n, end + k, j, r) = *IDX(grid, n, HALO + k - 1, j, r);
+      *IDX(grid, n, HALO - k, j, r) = *IDX(grid, n, end - k + 1, j, r);
       }
     }
-    /* copy left and right */
-    for(int k = 1; k < r + 1; k++){
-    for (i = start; i < end; i++) {
-        *IDX(grid, n, i, end + k, r) = *IDX(grid, n, i, start + k - 1, r);
-        *IDX(grid, n, i, start - k, r) = *IDX(grid, n, i, end + k - 1, r);
+}
+__global__ void copy_left_right(cell_t *grid, int n, int r )
+{
+
+  const int end = HALO + n - 1;
+  const int i = HALO + threadIdx.y + blockIdx.y * blockDim.y;
+  const int k =  threadIdx.y + blockIdx.y * blockDim.y + 1;
+  if( k < HALO + 1){
+    if ( i < end) {
+    //  printf("\n %d",*IDX(grid, n, i, HALO + k - 1, r));
+      *IDX(grid, n, i, end + k, r) = *IDX(grid, n, i, HALO + k - 1, r);
+      *IDX(grid, n, i, HALO - k, r) = *IDX(grid, n, i, end + k - 1, r);
     }
   }
-  /* copy corners */
-    for (i = 0; i < r ; i++) {
-    for (j = 0; j < r; j++) {
+}
+__global__ void copy_corners(cell_t *grid, int n, int r)
+{
+    const int i =  threadIdx.y + blockIdx.y * blockDim.y;
+    const int j = threadIdx.x + blockIdx.x * blockDim.x;
+
+    if( i < HALO){
+      if (j < HALO){
         *IDX(grid, n, i ,j , r) = *IDX(grid, n, i + r + 1, j + r + 1 , r);
         *IDX(grid, n, i + r + n ,j + r + n, r) = *IDX(grid, n,i + r, j + r, r);
         *IDX(grid, n, i ,j + r + n, r) = *IDX(grid, n, i + r + 1, j + r  , r);
         *IDX(grid, n, i + r + n ,j, r) = *IDX(grid, n,i + r , j + r + 1 , r);
       }
-    }
+  }
 }
 /**
   * Write the content of the bmap_t structure pointed to by ltl to the
@@ -109,24 +120,7 @@ void fill_ghost( cell_t *grid, int n, int r)
          fprintf(f, "\n");
      }
  }
-/*Count how many neighbors are living in the range of i j element
- __device__ int count_neighbors(cell_t cur,int n, int i, int j, int r )
- {
-   /*int nbors = 0;
-   for(int k = 1 ; k < r + 1 ; k++){
-     for(int f= 1 ; f < r + 1 ; f++){
-          nbors = nbors +
-        /*  *IDX(cur,n, i-k,j-f, r) + *IDX(cur, n, i-k,j, r) + *IDX(cur, n,i-k,j+f, r) +
-          *IDX(cur,n,i  ,j-f,r) +                            *IDX(cur,n,i  ,j+f, r) +
-          *IDX(cur,n,i + k,j - f,r) + *IDX(cur,n,i+k,j,r) + *IDX(cur,n,i+k,j+f,r);*/
-        /*  cur[i-k][j-f] + cur[i-k][j] + cur[i-k][j+f] +
-          cur[i][j-f] +              + cur[i ][j+f] +
-          cur[i + k][j-f]+cur[i+k][j] + cur[i+k][j+f];
 
-    }
-  }
-	return ;
-}*/
  /*Compute of the Larger than life*/
 __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, int b2, int d1, int d2)
  {
@@ -134,7 +128,7 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
     then using only those that serve*/
     /*c'era extern*/
 
-  __shared__ cell_t buf[BLKSIZE+2*HALO][BLKSIZE+2*HALO];
+  extern __shared__ cell_t buf[BLKSIZE+2*HALO][BLKSIZE+2*HALO];
 
    /* "global" indexes */
    const int gi = HALO + threadIdx.y + blockIdx.y * blockDim.y;
@@ -143,11 +137,12 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
   // const int lindex = HALO + threadIdx.x;
    const int li = HALO + threadIdx.y;
    const int lj = HALO + threadIdx.x;
-   printf("compute");
+
     //int   c = 0;
     /*Copy elements from global memory to local memory of block*/
     if ( gi<n+2*HALO && gj<n+2*HALO ) {
         buf[li][lj] = *IDX(cur, n, gi, gj,HALO);
+      // printf("%d\n", *IDX(cur, n, gi, gj,HALO));
         if (li < 2*HALO) { /* left-right */
             buf[li-HALO   ][lj] = *IDX(cur, n, gi-HALO,    gj,HALO);
             buf[li+BLKSIZE][lj] = (gi+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi+BLKSIZE, gj,HALO) : 0);
@@ -158,6 +153,7 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
             buf[li][lj+BLKSIZE] = (gj+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi, gj+BLKSIZE,HALO) : 0);
         }
         if (li < 2*HALO && lj < 2*HALO) { /* corners */
+
             buf[li-HALO   ][lj-HALO   ] = *IDX(cur, n, gi-HALO, gj-HALO,HALO);
             buf[li-HALO   ][lj+BLKSIZE] = (gj+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi-HALO, gj+BLKSIZE,HALO) : 0);
             buf[li+BLKSIZE][lj-HALO   ] = (gi+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi+BLKSIZE, gj-HALO,HALO) : 0);
@@ -175,7 +171,7 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
           buf[locali-r][localj-r] + buf[locali-r][localj] + buf[locali-r][localj+r] +
           buf[locali  ][localj-r]                 + buf[locali  ][localj+r] +
           buf[locali+r][localj-r] + buf[locali+r][localj] + buf[locali+r][localj+r];
-
+          
            if( !buf[locali][localj] && nbors >= b1 && nbors <= b2){ // if it can relive
               *IDX(next, n, globali, globalj, r) = 1; //Set it as live
            }else if(buf[locali][localj] && nbors + 1 >= d1 && nbors + 1 <= d2) // if the cell remaining live
@@ -222,13 +218,13 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
         exit(-1);
     }
     ltl->n = n = width;
-    int ng = n + (2*r);
+    int ng = n + (2*HALO);
     ltl->bmap = (cell_t*)malloc( ng * ng * sizeof(cell_t));
     /* scan bitmap; each pixel is represented by a single numeric
        character ('0' or '1'); spaces and other separators are ignored
        (Gimp produces PBM files with no spaces between digits) */
-    for (i = r; i < n + r ; i++) {
-         for (j = r; j < n + r ; j++) {
+    for (i = HALO; i < n + HALO ; i++) {
+         for (j = HALO; j < n + HALO ; j++) {
             int val;
             do {
                 val = fgetc(f);
@@ -239,6 +235,7 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
             } while ( !isdigit(val) );
             *IDX(ltl->bmap, n, i, j, r) = (val - '0');
         }
+
     }
  }
 
@@ -248,7 +245,7 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
      const char *infile, *outfile;
      FILE *in, *out;
      bmap_t cur;
-     cell_t *d_cur, *d_next, *d_tmp;
+     cell_t *d_cur, *d_next,*d_tmp;
      double tstart, tend;
      if ( argc != 9 ) {
          fprintf(stderr, "Usage: %s R B1 B2 D1 D2 nsteps infile outfile\n", argv[0]);
@@ -274,8 +271,6 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
          fprintf(stderr, "FATAL: can not open \"%s\" for reading\n", infile);
          exit(-1);
      }
-
-
      read_ltl(&cur, in, R);
      fclose(in);
 
@@ -290,34 +285,34 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
      }
 
      const int n = cur.n;
-     dim3 cpyBlock(BLKSIZE_GHOST,R);
-     dim3 cpyGrid(( n + 2 *R + BLKSIZE_GHOST - 1) / BLKSIZE_GHOST,1);
+     dim3 cpyBlock(BLKSIZE_GHOST,HALO);
+     /*there was 1 al posto di HALO nel secondo parametro*/
+     //dim3 cpyGrid(( n + 2 *HALO + BLKSIZE_GHOST - 1) / BLKSIZE_GHOST,HALO);
+     dim3 cpyGrid((n + BLKSIZE-1)/BLKSIZE, (n + BLKSIZE-1)/BLKSIZE);
      dim3 stepBlock(BLKSIZE,BLKSIZE);
      dim3 stepGrid((n + BLKSIZE-1)/BLKSIZE, (n + BLKSIZE-1)/BLKSIZE);
-     const size_t size = (n+2*R)*(n+2*R)*sizeof(cur.bmap);
 
-            /* Allocate space for device copy of cur and next grids */
+     const size_t size = (n+2*HALO)*(n+2*HALO)*sizeof(*cur.bmap);
+    /* Allocate space for device copy of cur and next grids */
     cudaMalloc((void**)&d_cur, size);
     cudaMalloc((void**)&d_next, size);
     /* Copy initial grid to d_cur */
-	   cudaMemcpy(d_cur, cur.bmap, size, cudaMemcpyHostToDevice);
-     tstart = hpc_gettime();
-     for (s = 0; s < nsteps; s++) {
-    	  fill_ghost(cur.bmap, n , R);
-        //fill_ghost<<<cpyGrid,cpyBlock>>>(d_cur,n,R);
-        /*
-        step<<<numBlocks, threadsPerBlock,(BLKSIZE+2*R)*(BLKSIZE+2*R)*sizeof(cell_t)>>>
-        */
-     	  compute_ltl<<<stepGrid,stepBlock>>>(d_cur, d_next, n, R, B1, B2, D1, D2);
-        d_tmp = d_cur;
-        d_cur = d_next;
-        d_next = d_tmp;
-    }
+	  cudaMemcpy(&d_cur,&cur.bmap, size, cudaMemcpyHostToDevice);
+    tstart = hpc_gettime();
 
+    for (s = 0; s < nsteps; s++) {
+     copy_top_bottom<<<stepGrid,stepBlock>>>(d_cur, n,R);
+     copy_left_right<<<stepGrid,stepBlock>>>(d_cur, n,R);
+     copy_corners<<<stepGrid,stepBlock>>>(d_cur, n,R);
+     compute_ltl<<<stepGrid,stepBlock>>>(d_cur, d_next, n, R, B1, B2, D1, D2);
+     d_tmp = d_cur;
+     d_cur = d_next;
+     d_next = d_tmp;
+    }
     cudaDeviceSynchronize();
     tend = hpc_gettime();
     fprintf(stderr, "Execution time %f\n", tend - tstart);
-    cudaMemcpy(cur.bmap, d_cur, size, cudaMemcpyDeviceToHost);
+    cudaMemcpy(&cur.bmap, &d_cur, size, cudaMemcpyDeviceToHost);
     write_ltl(&cur, out, R);
     fclose(out);
     free(cur.bmap);
