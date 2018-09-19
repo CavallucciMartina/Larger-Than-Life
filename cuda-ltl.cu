@@ -32,16 +32,16 @@
 
 #define BLKSIZE_GHOST 1024
 
- typedef unsigned char cell_t;
+typedef unsigned char cell_t;
 
- /* The struct of the bmap_t with a size and a point of unsigned char */
+/* The struct of the bmap_t with a size and a point of unsigned char */
 
- typedef struct {
-     int n;
-     cell_t *bmap;
- } bmap_t;
+typedef struct {
+  int n;
+  cell_t *bmap;
+} bmap_t;
 
- /* The following function makes indexing of the two-dimensional CA
+/* The following function makes indexing of the two-dimensional CA
     grid easier. Instead of writing, e.g., grid[i][j] (which you can
     not do anyway, since the CA grids are passed around as pointers to
     linear blocks of data), you write IDX(grid, n, i, j) to get a
@@ -52,15 +52,14 @@
     Note the use of both the __device__ and __host__ qualifiers: this
     function can be called both from host and device code. */
 
- __device__ __host__ cell_t *IDX(cell_t *grid, int n, int i, int j)
- {
- 	return (grid + i*(n +2*HALO)+j);
- }
+__device__ __host__ cell_t *IDX(cell_t *grid, int n, int i, int j)
+{
+   	return (grid + i*(n + 2 * HALO)+j);
+}
 
 /* Fill the ghost cells of |grid| in order to have cyclic boundary conditions*/
 __global__ void copy_top_bottom(cell_t *grid, int n)
 {
-
   const int end = HALO + n - 1;
   const int j = HALO + threadIdx.x + blockIdx.x * blockDim.x;
   const int k =  threadIdx.y + blockIdx.y * blockDim.y + 1;
@@ -90,43 +89,43 @@ __global__ void copy_left_right(cell_t *grid, int n )
 }
 __global__ void copy_corners(cell_t *grid, int n)
 {
-    const int i =  threadIdx.y + blockIdx.y * blockDim.y;
-    const int j = threadIdx.x + blockIdx.x * blockDim.x;
+  const int i =  threadIdx.y + blockIdx.y * blockDim.y;
+  const int j = threadIdx.x + blockIdx.x * blockDim.x;
 
-    /* Copy corners*/
-    if( i < HALO){
-      if (j < HALO){
-        *IDX(grid, n, i ,j) = *IDX(grid, n, i + HALO + 1, j + HALO + 1 );
-        *IDX(grid, n, i + HALO + n ,j + HALO + n) = *IDX(grid, n, i + HALO, j + HALO);
-        *IDX(grid, n, i ,j + HALO + n) = *IDX(grid, n, i + HALO + 1, j + HALO );
-        *IDX(grid, n, i + HALO + n ,j) = *IDX(grid, n, i + HALO , j + HALO + 1 );
-      }
+  /* Copy corners*/
+  if( i < HALO){
+    if (j < HALO){
+      *IDX(grid, n, i ,j) = *IDX(grid, n, i + HALO + 1, j + HALO + 1 );
+      *IDX(grid, n, i + HALO + n ,j + HALO + n) = *IDX(grid, n, i + HALO, j + HALO);
+      *IDX(grid, n, i ,j + HALO + n) = *IDX(grid, n, i + HALO + 1, j + HALO );
+      *IDX(grid, n, i + HALO + n ,j) = *IDX(grid, n, i + HALO , j + HALO + 1 );
+    }
   }
 }
 /**
   * Write the content of the bmap_t structure pointed to by ltl to the
   * file f in PBM format and and allocates space
-  *for the ghost cell that will be assigned.
+  * for the ghost cell that will be assigned.
   * The caller is responsible for passing a
   * pointer f to a file opened for writing
 */
- void write_ltl( bmap_t* grid, FILE *f , int r )
- {
-     const int n = grid->n;
-     fprintf(f, "P1\n");
-     fprintf(f, "# produced by ltl\n");
-     fprintf(f, "%d %d\n", n, n);
-     for (int i = r ; i < n + r; i++) {
-        for (int j = r ; j < n + r; j++) {
-             fprintf(f, "%d ", *IDX(grid->bmap, n, i, j));
-         }
+void write_ltl( bmap_t* grid, FILE *f , int r )
+{
+  const int n = grid->n;
+  fprintf(f, "P1\n");
+  fprintf(f, "# produced by ltl\n");
+  fprintf(f, "%d %d\n", n, n);
+  for (int i = r ; i < n + r; i++) {
+    for (int j = r ; j < n + r; j++) {
+         fprintf(f, "%d ", *IDX(grid->bmap, n, i, j));
+     }
          fprintf(f, "\n");
      }
  }
 
  /*Compute of the Larger than life*/
 __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, int b2, int d1, int d2)
- {
+{
    /*we assume the presence of 8 rows / columns of ghost cells per side,
     then using only those that serve*/
 
@@ -141,22 +140,22 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
    int nbors = 0;
 
     /*Copy elements from global memory to local memory of block*/
-    if ( gi<n+2*HALO && gj<n+2*HALO ) {
+    if ( gi < n + 2 * HALO && gj < n + 2 * HALO ) {
         buf[li][lj] = *IDX(cur, n, gi, gj);
 
-        if (li < 2*HALO) { /* left-right */
-            buf[li-HALO   ][lj] = *IDX(cur, n, gi-HALO, gj);
-            buf[li+BLKSIZE][lj] = (gi+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi+BLKSIZE, gj) : 0);
+        if (li < 2 * HALO) { /* left-right */
+            buf[li - HALO   ][lj] = *IDX(cur, n, gi - HALO, gj);
+            buf[li + BLKSIZE][lj] = (gi + BLKSIZE < n + 2 * HALO ? *IDX(cur, n, gi + BLKSIZE, gj) : 0);
         }
-        if (lj < 2*HALO) { /* top-bottom */
-            buf[li][lj-HALO   ] = *IDX(cur, n, gi, gj-HALO);
-            buf[li][lj+BLKSIZE] = (gj+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi, gj+BLKSIZE) : 0);
+        if (lj < 2 * HALO) { /* top-bottom */
+            buf[li][lj - HALO   ] = *IDX(cur, n, gi, gj - HALO);
+            buf[li][lj + BLKSIZE] = (gj + BLKSIZE < n + 2 * HALO ? *IDX(cur, n, gi, gj + BLKSIZE) : 0);
         }
-        if (li < 2*HALO && lj < 2*HALO) { /* corners */
-          buf[li-HALO   ][lj-HALO   ] = *IDX(cur, n, gi-HALO, gj-HALO);
-          buf[li-HALO   ][lj+BLKSIZE] = (gj+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi-HALO, gj+BLKSIZE) : 0);
-          buf[li+BLKSIZE][lj-HALO   ] = (gi+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi+BLKSIZE, gj-HALO) : 0);
-          buf[li+BLKSIZE][lj+BLKSIZE] = (gi+BLKSIZE < n+2*HALO && gj+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi+BLKSIZE, gj+BLKSIZE) : 0);
+        if (li < 2 * HALO && lj < 2 * HALO) { /* corners */
+          buf[li - HALO][lj - HALO   ] = *IDX(cur, n, gi - HALO, gj - HALO);
+          buf[li - HALO][lj + BLKSIZE] = (gj + BLKSIZE < n + 2 * HALO ? *IDX(cur, n, gi - HALO, gj + BLKSIZE) : 0);
+          buf[li + BLKSIZE][lj - HALO] = (gi + BLKSIZE < n + 2 * HALO ? *IDX(cur, n, gi + BLKSIZE, gj - HALO) : 0);
+          buf[li + BLKSIZE][lj + BLKSIZE] = (gi + BLKSIZE < n + 2 * HALO && gj + BLKSIZE < n + 2 * HALO ? *IDX(cur, n, gi + BLKSIZE, gj + BLKSIZE) : 0);
         }
     }
     __syncthreads();
@@ -183,9 +182,6 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
       *IDX(next, n, globali, globalj) = 0; // set it as died
     }
 }
-
-
-
  /**
   * Read a PBM file from file f. The caller is responsible for passing
   * a pointer f to a file opened for reading. This function is not very
@@ -288,10 +284,7 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
 
      const int n = cur.n;
      dim3 cpyBlock(BLKSIZE_GHOST,HALO);
-     /*------DA SISTEMARE NOMI ----*/
-     /*there was 1 al posto di HALO nel secondo parametro*/
-     //dim3 cpyGrid(( n + 2 *HALO + BLKSIZE_GHOST - 1) / BLKSIZE_GHOST,HALO);
-     dim3 cpyGrid((n + BLKSIZE-1)/BLKSIZE, (n + BLKSIZE-1)/BLKSIZE);
+     dim3 cpyGrid((n + BLKSIZE-1)/BLKSIZE, (n + BLKSIZE-1)/BLKSIZE,1);
      dim3 stepBlock(BLKSIZE,BLKSIZE);
      dim3 stepGrid((n + BLKSIZE-1)/BLKSIZE, (n + BLKSIZE-1)/BLKSIZE);
 
@@ -305,9 +298,9 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
     tstart = hpc_gettime();
 
     for (s = 0; s < nsteps; s++) {
-       copy_top_bottom<<<stepGrid,stepBlock>>>(d_cur, n);
-       copy_left_right<<<stepGrid,stepBlock>>>(d_cur, n);
-       copy_corners<<<stepGrid,stepBlock>>>(d_cur, n);
+       copy_top_bottom<<<cpyGrid,cpyBlock>>>(d_cur, n);
+       copy_left_right<<<cpyGrid,cpyBlock>>>(d_cur, n);
+       copy_corners<<<cpyGrid,cpyBlock>>>(d_cur, n);
        compute_ltl<<<stepGrid,stepBlock>>>(d_cur, d_next, n, R, B1, B2, D1, D2);
        d_tmp = d_cur;
        d_cur = d_next;
