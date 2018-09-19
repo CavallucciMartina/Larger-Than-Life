@@ -140,6 +140,7 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
   // const int lindex = HALO + threadIdx.x;
    const int li = HALO + threadIdx.y;
    const int lj = HALO + threadIdx.x;
+   int nbors = 0;
 
     //int   c = 0;
     /*Copy elements from global memory to local memory of block*/
@@ -169,48 +170,38 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
     }
 
        __syncthreads();
-    /*   const int globali = gi - HALO +r;
-       const int globalj = gj - HALO + r;
-       const int locali= li - HALO  +r ;
-       const int localj = lj - HALO + r;*/
+
        const int globali = r + threadIdx.y + blockIdx.y * blockDim.y;
-       const int globalj = r + threadIdx.x + blockIdx.x * blockDim.x;
-       /* "local" indexes */
-      // const int lindex = HALO + threadIdx.x;
-       const int locali = r + threadIdx.y;
-       const int localj = r + threadIdx.x;
+      const int globalj = r + threadIdx.x + blockIdx.x * blockDim.x;
+       const int localy = r + threadIdx.y;
+       const int localx = r + threadIdx.x;
+       int i,j;
+      for(i= localy - r ; i < localy + r ; i++){
+        for(j= localx - r; j < localx + r; j++){
 
-       __shared__ int nboars[BLKSIZE];
-       const int i = threadIdx.x + 1;
-       if ( globali < n+r && globalj < n+r ) {
-         if( i < BLKSIZE && i > 1 ){
-         nboars[i] = nbors[i-1] +
-          buf[locali-r][localj-r] + buf[locali-r][localj] + buf[locali-r][localj+r] +
-          buf[locali  ][localj-r]                 + buf[locali  ][localj+r] +
-          buf[locali+r][localj-r] + buf[locali+r][localj] + buf[locali+r][localj+r];
-        }
+          nbors = nbors +
+          buf[i][j] ;
 
         }
-        const int j = threadIdx + 1;
-        if ( j < BLKSIZE){
-          int sum +=nbors[i];
-        }
+      }
 
-        printf("nboars: %d\n",sum);
-        /*   if( !buf[locali][localj] && nbors >= b1 && nbors <= b2){ // if it can relive
+        // printf("nbors:%d \n",nbors);
+
+          if( !buf[localx][localy] && nbors >= b1 && nbors <= b2){ // if it can relive
 
               *IDX(next, n, globali, globalj, r) = 1; //Set it as live
-           }else if(buf[locali][localj] && nbors + 1 >= d1 && nbors + 1 <= d2) // if the cell remaining live
+           }else if(buf[localx][localy] && nbors + 1 >= d1 && nbors + 1 <= d2) // if the cell remaining live
            {
 
             *IDX(next, n, globali, globalj, r ) = 1;
            }else{
 
              *IDX(next, n, globali, globalj, r) = 0; // set it as died
-           }
-       }*/
 
- 	}
+       }
+}
+
+
 
  /**
   * Read a PBM file from file f. The caller is responsible for passing
