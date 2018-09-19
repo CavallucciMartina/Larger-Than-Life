@@ -24,8 +24,8 @@
  #include <ctype.h> /* for isdigit */
 
 #define BLKSIZE 32
-/*we assume the
-presence of 8 rows / columns of ghost cells per side, then using only those that serve*/
+/*we assume the presence of 8 rows / columns of ghost cells per side,
+ then using only those that serve*/
 #define HALO 8
 /* We use 1D blocks to copy ghost cells; in this case we can use up to
    1024 threads per block (for the GPUs on the lab machine) */
@@ -52,13 +52,13 @@ presence of 8 rows / columns of ghost cells per side, then using only those that
     Note the use of both the __device__ and __host__ qualifiers: this
     function can be called both from host and device code. */
 
- __device__ __host__ cell_t *IDX(cell_t *grid, int n, int i, int j, int r)
+ __device__ __host__ cell_t *IDX(cell_t *grid, int n, int i, int j)
  {
  	return (grid + i*(n +2*HALO)+j);
  }
 
 /* Fill the ghost cells of |grid| in order to have cyclic boundary conditions*/
-__global__ void copy_top_bottom(cell_t *grid, int n,int r)
+__global__ void copy_top_bottom(cell_t *grid, int n)
 {
 
   const int end = HALO + n - 1;
@@ -67,39 +67,39 @@ __global__ void copy_top_bottom(cell_t *grid, int n,int r)
   /* Copy top and bottom */
 
   if( k < HALO + 1){
-
     if ( j < end + 1) {
-      //  printf("k: %d j:  %d \n",k,j);
-      *IDX(grid, n, end + k, j, r) = *IDX(grid, n, HALO + k - 1, j, r);
-      *IDX(grid, n, HALO - k, j, r) = *IDX(grid, n, end - k + 1, j, r);
+      *IDX(grid, n, end + k, j) = *IDX(grid, n, HALO + k - 1, j);
+      *IDX(grid, n, HALO - k, j) = *IDX(grid, n, end - k + 1, j);
       }
     }
 }
-__global__ void copy_left_right(cell_t *grid, int n, int r )
+__global__ void copy_left_right(cell_t *grid, int n )
 {
 
   const int end = HALO + n - 1;
   const int i = HALO + threadIdx.y + blockIdx.y * blockDim.y;
   const int k =  threadIdx.y + blockIdx.y * blockDim.y + 1;
+  /* Copy left and right */
+
   if( k < HALO + 1){
     if ( i < end + 1 ) {
-    //  printf("\n %d",*IDX(grid, n, i, HALO + k - 1, r));
-      *IDX(grid, n, i, end + k, r) = *IDX(grid, n, i, HALO + k - 1, r);
-      *IDX(grid, n, i, HALO - k, r) = *IDX(grid, n, i, end + k - 1, r);
+      *IDX(grid, n, i, end + k) = *IDX(grid, n, i, HALO + k - 1);
+      *IDX(grid, n, i, HALO - k) = *IDX(grid, n, i, end + k - 1);
     }
   }
 }
-__global__ void copy_corners(cell_t *grid, int n, int r)
+__global__ void copy_corners(cell_t *grid, int n)
 {
     const int i =  threadIdx.y + blockIdx.y * blockDim.y;
     const int j = threadIdx.x + blockIdx.x * blockDim.x;
 
+    /* Copy corners*/
     if( i < HALO){
       if (j < HALO){
-        *IDX(grid, n, i ,j , r) = *IDX(grid, n, i + r + 1, j + r + 1 , r);
-        *IDX(grid, n, i + r + n ,j + r + n, r) = *IDX(grid, n,i + r, j + r, r);
-        *IDX(grid, n, i ,j + r + n, r) = *IDX(grid, n, i + r + 1, j + r  , r);
-        *IDX(grid, n, i + r + n ,j, r) = *IDX(grid, n,i + r , j + r + 1 , r);
+        *IDX(grid, n, i ,j) = *IDX(grid, n, i + HALO + 1, j + HALO + 1 );
+        *IDX(grid, n, i + HALO + n ,j + HALO + n) = *IDX(grid, n, i + HALO, j + HALO);
+        *IDX(grid, n, i ,j + HALO + n) = *IDX(grid, n, i + HALO + 1, j + HALO );
+        *IDX(grid, n, i + HALO + n ,j) = *IDX(grid, n, i + HALO , j + HALO + 1 );
       }
   }
 }
@@ -118,7 +118,7 @@ __global__ void copy_corners(cell_t *grid, int n, int r)
      fprintf(f, "%d %d\n", n, n);
      for (int i = r ; i < n + r; i++) {
         for (int j = r ; j < n + r; j++) {
-             fprintf(f, "%d ", *IDX(grid->bmap, n, i, j, r));
+             fprintf(f, "%d ", *IDX(grid->bmap, n, i, j));
          }
          fprintf(f, "\n");
      }
@@ -129,7 +129,6 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
  {
    /*we assume the presence of 8 rows / columns of ghost cells per side,
     then using only those that serve*/
-    /*c'era extern*/
 
    __shared__ cell_t buf[BLKSIZE+2*HALO][BLKSIZE+2*HALO];
 
@@ -137,68 +136,52 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
    const int gi = HALO + threadIdx.y + blockIdx.y * blockDim.y;
    const int gj = HALO + threadIdx.x + blockIdx.x * blockDim.x;
    /* "local" indexes */
-  // const int lindex = HALO + threadIdx.x;
    const int li = HALO + threadIdx.y;
    const int lj = HALO + threadIdx.x;
    int nbors = 0;
 
-    //int   c = 0;
     /*Copy elements from global memory to local memory of block*/
     if ( gi<n+2*HALO && gj<n+2*HALO ) {
-        buf[li][lj] = *IDX(cur, n, gi, gj,HALO);
+        buf[li][lj] = *IDX(cur, n, gi, gj);
 
-    //  printf("%d\n", *IDX(cur, n, gi, gj,HALO));
         if (li < 2*HALO) { /* left-right */
-            buf[li-HALO   ][lj] = *IDX(cur, n, gi-HALO,    gj,HALO);
-            buf[li+BLKSIZE][lj] = (gi+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi+BLKSIZE, gj,HALO) : 0);
-
+            buf[li-HALO   ][lj] = *IDX(cur, n, gi-HALO, gj);
+            buf[li+BLKSIZE][lj] = (gi+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi+BLKSIZE, gj) : 0);
         }
-
         if (lj < 2*HALO) { /* top-bottom */
-            buf[li][lj-HALO   ] = *IDX(cur, n, gi, gj-HALO,HALO);
-            buf[li][lj+BLKSIZE] = (gj+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi, gj+BLKSIZE,HALO) : 0);
-
+            buf[li][lj-HALO   ] = *IDX(cur, n, gi, gj-HALO);
+            buf[li][lj+BLKSIZE] = (gj+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi, gj+BLKSIZE) : 0);
         }
         if (li < 2*HALO && lj < 2*HALO) { /* corners */
+          buf[li-HALO   ][lj-HALO   ] = *IDX(cur, n, gi-HALO, gj-HALO);
+          buf[li-HALO   ][lj+BLKSIZE] = (gj+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi-HALO, gj+BLKSIZE) : 0);
+          buf[li+BLKSIZE][lj-HALO   ] = (gi+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi+BLKSIZE, gj-HALO) : 0);
+          buf[li+BLKSIZE][lj+BLKSIZE] = (gi+BLKSIZE < n+2*HALO && gj+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi+BLKSIZE, gj+BLKSIZE) : 0);
+        }
+    }
+    __syncthreads();
 
-            buf[li-HALO   ][lj-HALO   ] = *IDX(cur, n, gi-HALO, gj-HALO,HALO);
-           buf[li-HALO   ][lj+BLKSIZE] = (gj+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi-HALO, gj+BLKSIZE,HALO) : 0);
-            buf[li+BLKSIZE][lj-HALO   ] = (gi+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi+BLKSIZE, gj-HALO,HALO) : 0);
-           buf[li+BLKSIZE][lj+BLKSIZE] = (gi+BLKSIZE < n+2*HALO && gj+BLKSIZE < n+2*HALO ? *IDX(cur, n, gi+BLKSIZE, gj+BLKSIZE,HALO) : 0);
-
+    const int globali = r + threadIdx.y + blockIdx.y * blockDim.y;
+    const int globalj = r + threadIdx.x + blockIdx.x * blockDim.x;
+    const int localy = r + threadIdx.y;
+    const int localx = r + threadIdx.x;
+    int i,j;
+    for(i = localy - r ; i < localy + r ; i++){
+      for(j = localx - r; j < localx + r; j++){
+          nbors = nbors +
+          buf[i][j] ;
         }
     }
 
-       __syncthreads();
+    if( !buf[localx][localy] && nbors >= b1 && nbors <= b2){ // if it can relive
+      *IDX(next, n, globali, globalj) = 1; //Set it as live
 
-       const int globali = r + threadIdx.y + blockIdx.y * blockDim.y;
-      const int globalj = r + threadIdx.x + blockIdx.x * blockDim.x;
-       const int localy = r + threadIdx.y;
-       const int localx = r + threadIdx.x;
-       int i,j;
-      for(i= localy - r ; i < localy + r ; i++){
-        for(j= localx - r; j < localx + r; j++){
-
-          nbors = nbors +
-          buf[i][j] ;
-
-        }
-      }
-
-        // printf("nbors:%d \n",nbors);
-
-          if( !buf[localx][localy] && nbors >= b1 && nbors <= b2){ // if it can relive
-
-              *IDX(next, n, globali, globalj, r) = 1; //Set it as live
-           }else if(buf[localx][localy] && nbors + 1 >= d1 && nbors + 1 <= d2) // if the cell remaining live
-           {
-
-            *IDX(next, n, globali, globalj, r ) = 1;
-           }else{
-
-             *IDX(next, n, globali, globalj, r) = 0; // set it as died
-
-       }
+    }else if(buf[localx][localy] && nbors + 1 >= d1 && nbors + 1 <= d2) // if the cell remaining live
+    {
+      *IDX(next, n, globali, globalj) = 1;// set it as live
+    }else{
+      *IDX(next, n, globali, globalj) = 0; // set it as died
+    }
 }
 
 
@@ -252,7 +235,7 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
                     exit(-1);
                 }
             } while ( !isdigit(val) );
-            *IDX(ltl->bmap, n, i, j, r) = (val - '0');
+            *IDX(ltl->bmap, n, i, j) = (val - '0');
         }
 
     }
@@ -305,19 +288,14 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
 
      const int n = cur.n;
      dim3 cpyBlock(BLKSIZE_GHOST,HALO);
+     /*------DA SISTEMARE NOMI ----*/
      /*there was 1 al posto di HALO nel secondo parametro*/
      //dim3 cpyGrid(( n + 2 *HALO + BLKSIZE_GHOST - 1) / BLKSIZE_GHOST,HALO);
      dim3 cpyGrid((n + BLKSIZE-1)/BLKSIZE, (n + BLKSIZE-1)/BLKSIZE);
      dim3 stepBlock(BLKSIZE,BLKSIZE);
      dim3 stepGrid((n + BLKSIZE-1)/BLKSIZE, (n + BLKSIZE-1)/BLKSIZE);
 
-
      const size_t size = (n+2*HALO)*(n+2*HALO)*sizeof(*(cur.bmap));
-     printf("sizeof cur.bmap:\n %d", sizeof(*(cur.bmap)));
-     printf("sizeof cur.bmap2:\n %d", sizeof(*cur.bmap));
-     printf("n: %d\n",n);
-
-     printf("size d_cur %d\n", size);
     /* Allocate space for device copy of cur and next grids */
     cudaMalloc((void**)&d_cur, size);
     cudaMalloc((void**)&d_next, size);
@@ -327,13 +305,13 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
     tstart = hpc_gettime();
 
     for (s = 0; s < nsteps; s++) {
-     copy_top_bottom<<<stepGrid,stepBlock>>>(d_cur, n,R);
-     copy_left_right<<<stepGrid,stepBlock>>>(d_cur, n,R);
-     copy_corners<<<stepGrid,stepBlock>>>(d_cur, n,R);
-     compute_ltl<<<stepGrid,stepBlock>>>(d_cur, d_next, n, R, B1, B2, D1, D2);
-     d_tmp = d_cur;
-     d_cur = d_next;
-     d_next = d_tmp;
+       copy_top_bottom<<<stepGrid,stepBlock>>>(d_cur, n);
+       copy_left_right<<<stepGrid,stepBlock>>>(d_cur, n);
+       copy_corners<<<stepGrid,stepBlock>>>(d_cur, n);
+       compute_ltl<<<stepGrid,stepBlock>>>(d_cur, d_next, n, R, B1, B2, D1, D2);
+       d_tmp = d_cur;
+       d_cur = d_next;
+       d_next = d_tmp;
     }
     cudaDeviceSynchronize();
     tend = hpc_gettime();
@@ -344,6 +322,5 @@ __global__ void compute_ltl( cell_t *cur, cell_t *next, int n, int r, int b1, in
     free(cur.bmap);
     cudaFree(d_cur);
     cudaFree(d_next);
-
      return 0;
  }
